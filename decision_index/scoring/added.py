@@ -57,7 +57,7 @@ def report(n, rows, results):
             x["track"] = row["_evaluation"]["track"]
             fields.append(x)
     answered = status["ok"]
-    out = dict(catalog_id=n, dataset=rows[0]["_evaluation"]["dataset"], requests=len(rows), answered=answered, unsupported=status["unsupported"], errors=status["error"], abstained=status["abstained"], pending=status["pending"], scored_fields=len(fields), metric="accuracy", score=mean(x["correct"] for x in fields), field_accuracy=mean(x["correct"] for x in fields), median_ms=statistics.median(latency) if latency else None, chance=chance(n, rows))
+    out = dict(catalog_id=n, dataset=rows[0]["_evaluation"]["dataset"], requests=len(rows), answered=answered, unsupported=status["unsupported"], errors=status["error"], abstained=status["abstained"], pending=status["pending"], scored_fields=len(fields), metric="accuracy", score=mean([x["correct"] for x in fields]), field_accuracy=mean([x["correct"] for x in fields]), median_ms=statistics.median(latency) if latency else None, chance=chance(n, rows))
     if n in F1_POSITIVE:
         out.update(metric="F1 on hallucinated class", score=f1(fields, F1_POSITIVE[n]) if fields else None)
     return out

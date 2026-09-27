@@ -96,6 +96,14 @@ def test_added_accuracy_and_coverage():
     assert v["skill"] == 0.0
 
 
+def test_added_report_without_answers():
+    rr = rows(57, ["A", "B"])
+    rep = A.report(57, rr, {rr[0]["_evaluation"]["run_id"]: {"status": "error"}})
+    assert rep["score"] is None and rep["field_accuracy"] is None
+    assert (rep["answered"], rep["errors"], rep["pending"]) == (0, 1, 1)
+    assert X.added_value(rep["score"], rep["answered"], rep["requests"], 0.5)["skill"] == 0.0
+
+
 def test_ragtruth_f1_and_chance():
     rr = rows(59, [True, False, True, False], {"true": "t", "false": "f"}, qtype="noul")
     preds = [0.9, 0.8, 0.1, 0.2]
