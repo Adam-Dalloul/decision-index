@@ -2,9 +2,25 @@
 
 Reproduction kit for the **Decision Index**, a benchmark for *typed decision engines*: models that take a `state` and a set of typed `questions` (multiple-choice `choice` or yes/no `noul` primitives with explicit `criteria`) and return one answer per question with a probability for every supplied option. It lets anyone rebuild the frozen suite from public sources, run any engine through it with checkpoint/resume, score every benchmark with the leaderboard's own scorers, and compute the index, on a laptop or as one Hugging Face Job.
 
-The live board is **Decision Index 0.2** (2026-09-24), the default everywhere in this kit. It averages 40 benchmarks in five equal-weight areas, each chance-corrected (0 = random guessing, 100 = perfect) and coverage-adjusted (unanswered = wrong). Edition 0.1 stays reproducible with `--edition 0.1` ([docs/edition-0.1.md](docs/edition-0.1.md)).
+The live board is **Decision Index 0.2.1** (2026-09-27), the default everywhere in this kit. It rescores 0.2 on the same suite files: 38 benchmarks in five areas weighted by the square root of their size (Arts & Human Taste fixed at 10%), each chance-corrected (0 = random guessing, 100 = perfect) and coverage-adjusted (unanswered = wrong). Edition 0.2 stays reproducible with `--edition 0.2` and 0.1 with `--edition 0.1` ([docs/edition-0.1.md](docs/edition-0.1.md)).
 
 Not affiliated with TypeSafe AI.
+
+## What changed in 0.2.1
+
+These are the site's own summary lines for the scoring:
+
+- New area weights: Arts & Human Taste is fixed at 10%; the other four areas share the rest in proportion to the square root of their benchmark count: Tools & Automation 18.3%, Retrieval & Classification 20.0%, Knowledge & Reasoning 25.8%, Language Understanding 25.8%.
+- Gold ★ benchmarks weigh 1.2 inside their area, the rest 1.0: MMLU-Pro, BBH, GPQA Diamond, HLE, ANLI, WinoGrande, HellaSwag, BANKING77, CLINC150, BRIGHT, BFCL, API-Bank, ForecastBench.
+- SGD leaves the index until it is re-run with a fixed builder, and RouterBench leaves because its prompt gives away the best route. Both stay on the board.
+- ACOS is now scored with F1 per review instead of all-or-nothing, and stays in the index.
+- ToolRet and BRIGHT count only queries with at least one relevant candidate among the 32 (685 of 1,000 and 220 of 550); chance is recomputed on the same queries.
+- RAGTruth chance is now always answering "hallucinated" (F1 0.518) instead of a fair coin (0.411).
+- Home appliances drops 24 duplicate test rows and 48 rows identical to published dev rows (88 of 160 kept).
+
+On the board, Surogate Rune 26B-A4B v3 and reflex 27B's full-coverage rerun replace their earlier runs, and Lavoir, JPT-0.8B and JPT-9B join.
+
+In the kit this means: 0.2.1 reads the same files as 0.2 (same hashes, same `suite-0.2/`), so a complete 0.2 run is also a complete 0.2.1 run and `score --edition 0.2.1` rescores it. The answerable-query lists and the Home appliances cut ship in `decision_index/data/release-v2.1/` and are applied at read time, like the ACOS subset: 120,340 requests, 119,898 scoreable after the 442 exclusions, plus the same 30,419 for the seven benchmarks added in 0.2. `run` and `pipeline` under 0.2.1 skip the dropped rows.
 
 ## What changed in 0.2
 
@@ -53,7 +69,9 @@ For a model behind your own server that speaks the `/v1/systemone` wire format, 
 python -m decision_index pipeline --engine http --option base_url=http://127.0.0.1:8000 --option model=my-model --out runs/my-model
 ```
 
-`run`/`pipeline` resume from an existing `results.jsonl`; rows whose status is `error` are retried, everything else is kept. A 0.1 `results.jsonl` can be rescored under 0.2 (the 0.2 base rows are a subset of 0.1), but the seven new benchmarks still have to be run; resuming the same output directory under 0.2 runs only those.
+`run`/`pipeline` resume from an existing `results.jsonl`; rows whose status is `error` are retried, everything else is kept. A 0.2 `results.jsonl` scores under 0.2.1 as it is. A 0.1 `results.jsonl` can be rescored under 0.2 and 0.2.1 (their base rows are a subset of 0.1), but the seven new benchmarks still have to be run; resuming the same output directory runs only those.
+
+Models whose median latency is over 1,000 ms per request on one RTX PRO 6000 (measured by the maintainers, single process, one request at a time, the fastest path the model's code supports) are not added to the board: at that speed they are no longer Jev-like. The latency in your own `scores.json` is a guide, not that measurement.
 
 ## Quickstart (Hugging Face Jobs)
 
@@ -72,7 +90,7 @@ python -m decision_index hf-job --engine transformers --model Qwen/Qwen2.5-7B-In
     --results-repo <you>/decision-index-results --run-name qwen-7b
 ```
 
-`hf-job` creates `<you>/decision-index-results` (private unless `--public`), uploads a snapshot of this package to `code/decision-index-src.tar.gz`, and submits `hf jobs run --flavor rtx-pro-6000 --timeout 72h pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime ...` with `HF_TOKEN` as a job secret. The job installs the snapshot, downloads the suite, runs the engine, scores, and uploads to `runs/<run-name>/`. `--git-url` installs from a git checkout instead, `--dry-run` prints the command, `--flavor`/`--image`/`--timeout` change the hardware, `--limit N` and `--compact` help while testing, `--edition 0.1` runs the old edition.
+`hf-job` creates `<you>/decision-index-results` (private unless `--public`), uploads a snapshot of this package to `code/decision-index-src.tar.gz`, and submits `hf jobs run --flavor rtx-pro-6000 --timeout 72h pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime ...` with `HF_TOKEN` as a job secret. The job installs the snapshot, downloads the suite, runs the engine, scores, and uploads to `runs/<run-name>/`. `--git-url` installs from a git checkout instead, `--dry-run` prints the command, `--flavor`/`--image`/`--timeout` change the hardware, `--limit N` and `--compact` help while testing, `--edition 0.2` or `--edition 0.1` runs an earlier edition.
 
 ## Scoring and the index
 
@@ -82,13 +100,15 @@ python -m decision_index hf-job --engine transformers --model Qwen/Qwen2.5-7B-In
 - `index.json`: per benchmark `raw`, `skill`, `coverage` and chance level; the five areas; `index` (the Decision Index) and `raw_index`.
 - `scores.json`: both combined, with completion flags. This is the file a submission points at.
 
-The 0.2 index, exactly as the board computes it (`decision_index/scoring/index02.py`, panel and chance levels in `decision_index/data/index-0.2.json`):
+The 0.2.1 index, exactly as the board computes it (`decision_index/scoring/index02.py`; panel, weights and chance levels in `decision_index/data/index-0.2.1.json`, and in `index-0.2.json` for 0.2):
 
-1. **Per benchmark, coverage first.** Unanswered, unsupported, errored and abstained requests count as wrong: `raw = native score × answered / requests`. The 18 benchmarks carried over from the 0.1 panel keep their track-level scoring (unanswered groups score zero inside the metric).
-2. **Chance correction.** `skill = clip((raw − chance) / (1 − chance), 0, 1)`. Chance is per track for GSM8K and RouterBench, per query (expected nDCG@10 of a random ranking) for ToolRet and BRIGHT, F1 of random guessing for the F1 benchmarks, and the mean of 1/options otherwise. **ForecastBench** enters against its baseline instead: `clip((0.25 − Brier) / 0.25) × coverage`, so always predicting 0.5 scores zero.
-3. **Areas and index.** Each area is the plain mean of its benchmarks; the index is `100 × mean of the five areas`. `raw_index` is the same with `raw` in place of `skill`. MMLU, ARC-Easy, ARC-Challenge and SimpleBench are scored and shown but not counted. The board treats scores within 0.25 index points of the next one as tied (`index02.ranks`).
+1. **Per benchmark, coverage first.** Unanswered, unsupported, errored and abstained requests count as wrong: `raw = native score × answered / requests`. The benchmarks carried over from the 0.1 panel keep their track-level scoring (unanswered groups score zero inside the metric). ACOS is scored by F1 per review, averaged over reviews (case exact accuracy in 0.2).
+2. **Chance correction.** `skill = clip((raw − chance) / (1 − chance), 0, 1)`. Chance is per track for GSM8K, per query (expected nDCG@10 of a random ranking, on the answerable queries) for ToolRet and BRIGHT, F1 of always answering "hallucinated" for RAGTruth (0.5177; a fair coin, 0.4113, in 0.2), per-review F1 of answering yes to every pair for ACOS (0.031), all fields of a case right by chance for BFCL, SATA-Bench and Home appliances (on the kept rows), F1 of random guessing for the other F1 benchmarks, and the mean of 1/options otherwise. **ForecastBench** enters against its baseline instead: `clip((0.25 − Brier) / 0.25) × coverage`, so always predicting 0.5 scores zero.
+3. **Areas and index.** Inside an area, gold ★ benchmarks weigh 1.2 and the rest 1.0. Arts & Human Taste weighs 10% and the other four areas share 90% in proportion to the square root of their benchmark count (`index02.area_weights`); the index is `100 × the weighted mean of the five areas`, and `breadth_skill` uses the same weights in its geometric mean. `raw_index` is the same with `raw` in place of `skill`. MMLU, ARC-Easy, ARC-Challenge, SimpleBench, RouterBench and SGD are scored and shown but not counted. The board treats scores within 0.25 index points of the next one as tied (`index02.ranks`).
 
-Parity: `score` over the lab's own results reproduces every one of the 49 entrants on the live 0.2 board, index, raw index, breadth, all five areas and all 40 per-benchmark values. `tests/test_index02.py` checks the index math against the published per-benchmark results of Jev (51.67), AutoJev-27B (50.94), Hopper (30.01) and Verdict (1.82).
+0.2 differs in three places: RouterBench and SGD count, every area is the plain mean of its benchmarks, and the five areas weigh the same.
+
+Parity: `score` over the lab's own results reproduces every one of the 67 entrants on the live 0.2.1 board, index, raw index, breadth, all five areas and all 38 per-benchmark values, and with `--edition 0.2` every one of the 64 entrants on the 0.2 board. `tests/test_index021.py` checks the 0.2.1 math against the published per-benchmark results of 13 entrants, from Rune 26B-A4B v3 (57.44) down to Lumma-Fev-0.1B (1.78), Jev (57.89) included; `tests/test_index02.py` does the same for 0.2.
 
 ## The suite
 
@@ -97,9 +117,9 @@ Parity: `score` over the lab's own results reproduces every one of the 49 entran
 | `selected-rows.jsonl.gz` | 124,971 requests: the 0.1 rows minus ToolRet/BRIGHT queries outside their subsets (excluded ToolRet/BRIGHT rows are carried over unchanged and never scored) | uncompressed `b2b56d6fb636837ca469e689087bdbf373dda8de7638aa2da6793e6eda0792d5` (the lab's gzip is `25aac5e890a54a3172c7a0c184b4cc8b9a43f10b6ee89bbad8da923be423c656`) |
 | `added-rows.jsonl.gz` | 30,419 requests of the seven new benchmarks | uncompressed `7429f3c9cdddb772c1cfc42bb2a45e8516b0032152b746e6929f1c8b52f4ce89` |
 | `excluded-questions.json` | 442 request ids dropped at scoring time for every engine (unchanged from 0.1) | `331df32d4b719c7db43214d0e5d85859d39c3b2eb7d0b3812214cce150155e81` |
-| `manifest.json` | counts, subset rules, sources and licences (`hub/0.2/manifest.json`) | (any) |
+| `manifest.json` | counts, subset rules, sources and licences (`hub/0.2.1/manifest.json`, `hub/0.2/manifest.json`) | (any) |
 
-The ToolRet/BRIGHT subset lists and the ACOS 400-review subset ship with the package (`decision_index/data/release-v2/`). Rebuilt gzip files differ from the lab's in their header, so the kit verifies the uncompressed hash. Sources, revisions, sampling and licences per benchmark: [docs/suite.md](docs/suite.md). Row and result formats: [docs/format.md](docs/format.md).
+The ToolRet/BRIGHT subset lists and the ACOS 400-review subset ship with the package (`decision_index/data/release-v2/`), and so do the 0.2.1 answerable-query lists and Home appliances cut (`decision_index/data/release-v2.1/`); their sha256 are pinned in `editions.py` and checked by `suite verify`. Rebuilt gzip files differ from the lab's in their header, so the kit verifies the uncompressed hash. Sources, revisions, sampling and licences per benchmark: [docs/suite.md](docs/suite.md). Row and result formats: [docs/format.md](docs/format.md).
 
 ## Benchmarks (0.2)
 
@@ -150,7 +170,7 @@ The ToolRet/BRIGHT subset lists and the ACOS 400-review subset ship with the pac
 | 62 | When2Call | Tools & Automation | accuracy | 0.25 | 3,652 | new |
 | 64 | New Yorker | Arts & Human Taste | accuracy | 0.2 | 528 | new |
 
-Requests are after the 442 exclusions. The six interactive environments of the original panel (MiniWoB++, ScienceWorld, Boxoban, RTFM, Hanabi, Codenames) are still unrun and stay out.
+Requests are after the 442 exclusions. In 0.2.1, RouterBench and SGD are shown but not counted; ToolRet, BRIGHT and Home appliances keep 685, 220 and 88 requests (chance 0.1341, 0.116 and 0); ACOS is scored by per-review F1 (chance 0.031); RAGTruth chance is 0.5177; and MMLU-Pro, BBH, GPQA Diamond, HLE, ANLI, WinoGrande, HellaSwag, BANKING77, CLINC150, BRIGHT, BFCL, API-Bank and ForecastBench are gold ★. The six interactive environments of the original panel (MiniWoB++, ScienceWorld, Boxoban, RTFM, Hanabi, Codenames) are still unrun and stay out.
 
 ## Rules
 
@@ -174,27 +194,29 @@ The board's entrants were run with their authors' own inference code. Entrants w
 
 ## Submitting a model to the leaderboard
 
-1. Run the full 0.2 suite (`pipeline` or `hf-job`) and upload the run directory to a Hub dataset (`--upload <you>/<repo>`; the job does this for you).
+1. Run the full suite (`pipeline` or `hf-job`; a complete 0.2 run is also a complete 0.2.1 run) and upload the run directory to a Hub dataset (`--upload <you>/<repo>`; the job does this for you).
 2. Open a pull request adding a line to `submissions/README.md` (create it if needed) with the model name, the results dataset link (`runs/<name>/scores.json` must be present), the engine/commit used and hardware. Runs must be complete (`scores.json` says `"complete": true`) and untouched: the results file is re-scored on review.
 3. Mention any declared capacity limits; they show in `environment.json` and in the unsupported counts and are fine, as long as nothing was truncated.
+
+The maintainers measure latency themselves, single-process on one RTX PRO 6000 using the fastest path the model's code supports, on a private held-out sample. That same sample is used to validate submitted runs by comparing answers. Models whose median latency there is over 1,000 ms per request are not added to the board: at that speed they are no longer Jev-like.
 
 ## Layout
 
 ```
 decision_index/
-  editions.py           0.1 and 0.2: hashes, counts, subsets
+  editions.py           0.1, 0.2 and 0.2.1: hashes, counts, subsets
   cli.py                suite | run | score | pipeline | hf-job
   runner.py             checkpoint/resume loop, results.jsonl rows
   pipeline.py           score + index + upload
   hf_job.py             one-job submitter (rtx-pro-6000)
   engines/              Engine base, http, transformers, random
-  scoring/              metrics, per-benchmark report, 0.1 index, 0.2 index (index02), new-benchmark scorer (added)
+  scoring/              metrics, per-benchmark report, 0.1 index, 0.2 and 0.2.1 index (index02), new-benchmark scorer (added)
   suite/                download, verify, sample, rebuild/ (0.1 normalizers, 0.2 cut, new benchmarks)
-  data/                 panels, chance levels, benchmark catalog, release-v2 subset lists
-hub/                    exclusions and manifests to stage with the rows (hub/0.2 for 0.2)
+  data/                 panels, chance levels, benchmark catalog, release-v2 and release-v2.1 subset lists
+hub/                    exclusions and manifests to stage with the rows (hub/0.2, hub/0.2.1)
 scripts/prepare_hub_upload.py
 docs/                   suite.md, format.md, engines.md, edition-0.1.md
-tests/                  metrics, index math (0.1 and 0.2), editions, report, runner
+tests/                  metrics, index math (0.1, 0.2 and 0.2.1), editions, report, runner
 ```
 
 ## Licence notes

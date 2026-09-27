@@ -1,5 +1,14 @@
 # The frozen suite: sources, sampling and licences
 
+## Edition 0.2.1
+
+Edition 0.2.1 rescores 0.2: the row files, their hashes and the exclusions are the same, and three more scoring subsets are applied at read time, like the ACOS one. `run`, `sample` and `score` skip the rows outside them.
+
+- **ToolRet and BRIGHT, answerable queries.** A query is answerable when at least one of its 32 scored candidates (`scoring.scorable_ids`) has a relevance judgment above 0; an unanswerable query scores nDCG@10 = 0 for every ranking. 685 of the 1,000 ToolRet queries and 220 of the 550 BRIGHT queries are answerable and stay; chance is the expected nDCG@10 of a random ranking on those queries (0.1341 and 0.116). The kept run ids, including the carried-over excluded rows so the exclusion count is unchanged, are in `decision_index/data/release-v2.1/toolret-subset.json` and `bright-subset.json`.
+- **Home appliances.** Test rows are compared by their full state (JSON, sorted keys). Of each set of identical rows the one with the lowest row id stays (24 duplicates dropped), and the 48 rows whose state is identical to a row of the published dev split are dropped: 88 of 160 rows stay (`home-appliances-subset.json`, which also lists the dropped run ids).
+
+That leaves 120,340 requests, 119,898 after the 442 exclusions, plus the 30,419 of the seven benchmarks added in 0.2. The subset files' sha256 are pinned in `editions.py` (`c301d550…`, `ed3a0522…`, `d2d0df92…`) and `hub/0.2.1/manifest.json` records them under `scoring_subsets`.
+
 ## Edition 0.2
 
 Edition 0.2 is built from edition 0.1 plus seven new benchmarks; nothing in the 0.1 rows is regenerated or edited.
