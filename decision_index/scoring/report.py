@@ -27,7 +27,7 @@ def score(rows, results):
     groups = collections.defaultdict(list)
     for row in rows:
         groups[row["_evaluation"]["group_id"]].append(row)
-    successful, field_hits, pairs, case_exact = [], [], [], []
+    successful, field_hits, pairs, case_exact, review_f1 = [], [], [], [], []
     by_field, special, cluster, subgroups = collections.defaultdict(list), collections.defaultdict(list), collections.defaultdict(list), collections.defaultdict(list)
     for row in rows:
         e = row["_evaluation"]
@@ -114,6 +114,17 @@ def score(rows, results):
                 p = prediction(r["questions"][q], ans[q])
                 hits.append(p in r["scoring"]["accepted"] if number in ACCEPTED_BENCHMARKS else p == g)
         case_exact.append(all(hits))
+        if number == 38:
+            gold_yes, pred_yes = set(), set()
+            for r in rs:
+                ans = results[r["_evaluation"]["run_id"]]["response"]["answers"]
+                for q, g in r["expected"].items():
+                    if g in ("yes", True):
+                        gold_yes.add((r["_evaluation"]["run_id"], q))
+                    if prediction(r["questions"][q], ans[q]) in ("yes", True):
+                        pred_yes.add((r["_evaluation"]["run_id"], q))
+            d = len(gold_yes) + len(pred_yes)
+            review_f1.append(2 * len(gold_yes & pred_yes) / d if d else 1.0)
     durations = [r["total_wall_ms"] for r in successful]
     http = [r["http_wall_ms"] for r in successful if "http_wall_ms" in r]
     report = dict(
@@ -133,6 +144,8 @@ def score(rows, results):
         input_tokens=sum((r.get("response") or {}).get("usage", {}).get("input_tokens", 0) for r in successful),
     )
     report["custom_metrics"] = {k: mean(v) for k, v in special.items()}
+    if review_f1:
+        report["review_f1"] = mean(review_f1)
     if cluster:
         report["cluster_macro_accuracy"] = mean([mean(x) for x in cluster.values()])
     if subgroups:
@@ -163,7 +176,14 @@ def score(rows, results):
     return report
 
 
-def benchmark_summary(suite, results, engine, reference=None, rows=None):
+def primary(n, report, metrics=None):
+    if metrics and n in metrics and report:
+        name, key = metrics[n]
+        return name, report.get(key)
+    return report.get("primary_metric"), report.get("primary_value")
+
+
+def benchmark_summary(suite, results, engine, reference=None, rows=None, metrics=None):
     groups = collections.defaultdict(list)
     for r in rows if rows is not None else suite.rows(apply_exclusions=True):
         groups[r["_evaluation"]["catalog_id"]].append(r)
@@ -190,13 +210,13 @@ def benchmark_summary(suite, results, engine, reference=None, rows=None):
             abstained=counts["abstained"],
             pending=counts["pending"],
             scored_requests=len(complete),
-            metric=v.get("primary_metric"),
-            score=v.get("primary_value"),
-            reference_same_cases=j.get("primary_value"),
+            metric=primary(n, v, metrics)[0],
+            score=primary(n, v, metrics)[1],
+            reference_same_cases=primary(n, j, metrics)[1],
             median_ms=statistics.median(ts) if ts else None,
         )
         if len(tracks) > 1:
-            entry["tracks"] = {k: {"metric": t.get("primary_metric"), "score": t.get("primary_value"), "scored_requests": len(rs)} for k, rs in sorted(tracks.items()) for t in [score(rs, results)]}
+            entry["tracks"] = {k: {"metric": primary(n, t, metrics)[0], "score": primary(n, t, metrics)[1], "scored_requests": len(rs)} for k, rs in sorted(tracks.items()) for t in [score(rs, results)]}
         if v:
             entry["detail"] = {k: v[k] for k in ("field_accuracy", "case_exact_accuracy", "macro_f1", "cluster_macro_accuracy", "custom_metrics", "subgroups", "positive_f1_by_field", "category_macro_f1", "positive_micro_f1") if k in v}
         reports.append(entry)

@@ -2,7 +2,7 @@ import hashlib
 import json
 from importlib import resources
 
-DEFAULT = "0.2"
+DEFAULT = "0.2.1"
 
 EDITIONS = {
     "0.1": dict(

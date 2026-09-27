@@ -5,8 +5,8 @@ from decision_index import constants as C
 from decision_index.scoring.index import chance_baselines, headline, load_data, rnd, score_panel, track_list
 
 
-def spec():
-    return load_data("index-0.2.json")
+def spec(edition="0.2"):
+    return load_data(f"index-{edition}.json")
 
 
 def clip(x):
@@ -59,13 +59,45 @@ def benchmark_value(n, s, track=None, native=None):
     return display_value(score, answered, requests, chance_of(n, s))
 
 
+def bench_weights(ids, s):
+    w = {n: s.get("gold", {}).get(str(n), 1.0) for n in ids}
+    t = sum(w.values())
+    return {n: v / t for n, v in w.items()}
+
+
+def area_weights(s):
+    sizing = s.get("area_sizing")
+    if not sizing:
+        return None
+    fixed = sizing["fixed"]
+    size = {a["id"]: len(a["benchmarks"]) ** 0.5 for a in s["areas"] if a["id"] not in fixed}
+    rest = 1 - sum(fixed.values())
+    return {a["id"]: (fixed[a["id"]] if a["id"] in fixed else rest * size[a["id"]] / sum(size.values())) for a in s["areas"]}
+
+
+def area_value(values, ids, key, s):
+    if not s.get("gold"):
+        return statistics.mean(values[n][key] for n in ids)
+    w = bench_weights(ids, s)
+    return sum(w[n] * values[n][key] for n in ids)
+
+
 def aggregate(values, s=None):
     s = s or spec()
     areas = []
     for a in s["areas"]:
         ids = a["benchmarks"]
-        areas.append(dict(id=a["id"], label=a["label"], raw=statistics.mean(values[n]["raw"] for n in ids), skill=statistics.mean(values[n]["skill"] for n in ids), coverage=statistics.mean(values[n]["coverage"] for n in ids), n=len(ids), benchmarks=list(ids)))
+        areas.append(dict(id=a["id"], label=a["label"], raw=area_value(values, ids, "raw", s), skill=area_value(values, ids, "skill", s), coverage=area_value(values, ids, "coverage", s), n=len(ids), benchmarks=list(ids)))
     skills = [a["skill"] for a in areas]
+    aw = area_weights(s)
+    if aw:
+        w = {a["id"]: aw[a["id"]] / sum(aw.values()) for a in areas}
+        scores = dict(
+            balanced_skill=100 * sum(w[a["id"]] * a["skill"] for a in areas),
+            balanced_raw=100 * sum(w[a["id"]] * a["raw"] for a in areas),
+            breadth_skill=100 * (math.prod((0.1 + 0.9 * a["skill"]) ** w[a["id"]] for a in areas) - 0.1) / 0.9,
+        )
+        return scores, areas
     scores = dict(
         balanced_skill=100 * statistics.mean(skills),
         balanced_raw=100 * statistics.mean(a["raw"] for a in areas),
@@ -88,8 +120,8 @@ def ranks(entries, tie=None):
     return {k: {"rank": r, "tied": counts[r] > 1} for k, r in out.items()}
 
 
-def index_entry(suite, results, summary, added_reports):
-    s = spec()
+def index_entry(suite, results, summary, added_reports, s=None):
+    s = s or spec()
     scored = score_panel(suite, results)
     native = {b["catalog_id"]: b for b in summary["benchmarks"]}
     native.update(added_reports)

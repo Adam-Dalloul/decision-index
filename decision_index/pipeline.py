@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from decision_index import constants as C
+from decision_index import editions
 from decision_index.scoring.index import index_entry, rnd, score_panel
 from decision_index.scoring.report import benchmark_summary, load_results
 from decision_index.suite.io import Suite, atomic_json
@@ -14,7 +15,7 @@ def score_run(suite, results_path, engine, out_dir, reference_results=None):
     out.mkdir(parents=True, exist_ok=True)
     results = load_results(results_path)
     reference = load_results(reference_results) if reference_results else None
-    if suite.edition["id"] == "0.2":
+    if editions.compatible(suite.edition["id"], "0.2"):
         return score_run_v02(suite, results, engine, out, reference)
     summary = benchmark_summary(suite, results, engine, reference)
     atomic_json(out / "benchmark-summary.json", summary)
@@ -58,13 +59,14 @@ def score_run_v02(suite, results, engine, out, reference=None):
 
     from decision_index.scoring import added, index02
 
-    spec = index02.spec()
+    spec = index02.spec(suite.edition["id"])
     added_ids = {int(n) for n in spec["added"]}
     base, extra = [], collections.defaultdict(list)
     for r in suite.rows(apply_exclusions=True):
         n = r["_evaluation"]["catalog_id"]
         (extra[n] if n in added_ids else base).append(r)
-    summary = benchmark_summary(suite, results, engine, reference, rows=base)
+    metrics = {int(n): (m["name"], m["key"]) for n, m in spec.get("metrics", {}).items()}
+    summary = benchmark_summary(suite, results, engine, reference, rows=base, metrics=metrics)
     added_reports = {n: added.report(n, rows, results) for n, rows in sorted(extra.items())}
     for n, rep in added_reports.items():
         entry = {k: rep[k] for k in ("catalog_id", "dataset", "requests", "answered", "unsupported", "errors", "abstained", "pending", "metric", "score", "median_ms")}
@@ -72,9 +74,9 @@ def score_run_v02(suite, results, engine, out, reference=None):
         if reference:
             entry["reference_same_cases"] = added.report(n, [row for row in extra[n] if results.get(row["_evaluation"]["run_id"], {}).get("status") == "ok"], reference)["score"]
         summary["benchmarks"].append(entry)
-    summary["edition"] = "0.2"
+    summary["edition"] = suite.edition["id"]
     atomic_json(out / "benchmark-summary.json", summary)
-    index = index02.index_entry(suite, results, summary, added_reports)
+    index = index02.index_entry(suite, results, summary, added_reports, spec)
     atomic_json(out / "index.json", index)
     benchmarks = {}
     for b in summary["benchmarks"]:
