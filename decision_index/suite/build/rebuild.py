@@ -47,7 +47,7 @@ def compare(rebuilt, reference, log=print):
 def main(work, only=None, skip_download=False, skip_normalize=False, compare_path=None, log=print, compare=None, edition="0.1", exclusions=None):
     from decision_index import editions
 
-    if editions.get(edition)["id"] == "0.2":
+    if editions.compatible(edition, "0.2"):
         return main_v2(work, only, skip_download, skip_normalize, compare or compare_path, log, exclusions)
     return main_v1(work, only, skip_download, skip_normalize, compare or compare_path, log)
 

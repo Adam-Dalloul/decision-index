@@ -14,7 +14,7 @@ def main():
     ap = argparse.ArgumentParser(description="Stage the frozen-suite files of one edition for upload to a private Hub dataset.")
     ap.add_argument("--edition", default=editions.DEFAULT, choices=sorted(editions.EDITIONS))
     ap.add_argument("--rows", required=True, help="path to selected-rows.jsonl(.gz)")
-    ap.add_argument("--added-rows", help="path to added-rows.jsonl(.gz) (0.2)")
+    ap.add_argument("--added-rows", help="path to added-rows.jsonl(.gz) (0.2 and 0.2.1)")
     ap.add_argument("--exclusions")
     ap.add_argument("--manifest")
     ap.add_argument("--out", default="hub-upload")

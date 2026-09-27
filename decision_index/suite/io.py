@@ -63,7 +63,7 @@ class Suite:
         if missing:
             raise FileNotFoundError(f"missing {', '.join(map(str, missing))}; build it with `decision-index suite rebuild --edition {self.edition['id']}` and `suite import`")
         found = self.manifest().get("edition")
-        if found and editions.get(found)["id"] != self.edition["id"]:
+        if found and not editions.compatible(self.edition["id"], found):
             raise ValueError(f"{self.directory} holds edition {found}, not {self.edition['name']}")
 
     @property
@@ -88,6 +88,8 @@ class Suite:
                 yield r
 
     def verify(self, strict=True):
+        from decision_index import editions
+
         e = self.edition
         actual = sha256_file(self.rows_path)
         report = {"edition": e["id"], "rows_file": str(self.rows_path), "sha256": actual, "expected_sha256": e["rows_gz_sha256"], "match": actual == e["rows_gz_sha256"]}
@@ -102,6 +104,10 @@ class Suite:
         if self.exclusions_path.exists():
             ex = sha256_file(self.exclusions_path)
             report.update(exclusions_sha256=ex, exclusions_match=ex == e["exclusions_sha256"])
+        subsets = editions.subset_sha256(e["id"])
+        if subsets:
+            report["subsets_match"] = all(e.get(k) == v for k, v in subsets.items())
+            report["match"] = report["match"] and report["subsets_match"]
         if strict and not report["match"]:
             raise ValueError(f"frozen suite hash mismatch: {report}")
         return report
