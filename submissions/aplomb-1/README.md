@@ -1,6 +1,6 @@
 # Aplomb 1
 
-[empiriolabsai/aplomb-1](https://huggingface.co/empiriolabsai/aplomb-1/tree/229a41d5381e8249fa96a3e1150ee0358e8306a4) is a 5.3B decision model from
+[empiriolabsai/aplomb-1](https://huggingface.co/empiriolabsai/aplomb-1/tree/d67432916c6e1fe569ab2de7942755eee91e6880) is a 5.3B decision model from
 EmpirioLabs, built on Qwen3.5-4B, with open weights under the EmpirioLabs Model License (the repository is gated and
 access is approved automatically). It answers each question with a probability for every option instead of
 generated text.
@@ -10,13 +10,13 @@ generated text.
 | Decision Index 0.3 public index | **43.49** (raw 57.04, breadth skill 42.39) |
 | Area skill | knowledge 29.8 · language 47.2 · retrieval 44.5 · tools 61.6 · arts 34.0 |
 | Requests | complete: 140,178 of 140,178 scoreable (140,620 sent), all answered, none unsupported, nothing truncated, no errors |
-| Results | [empiriolabsai/decision-index-results-aplomb-1](https://huggingface.co/datasets/empiriolabsai/decision-index-results-aplomb-1/tree/529ce6d046c7c88b054b76025bc93300c98472a6/runs/aplomb-1-0.3) (`--compact`, no suite text) |
+| Results | [empiriolabsai/decision-index-results-aplomb-1](https://huggingface.co/datasets/empiriolabsai/decision-index-results-aplomb-1/tree/490b0a103e0c4febacdb56b6456b12f34e5426d2/runs/aplomb-1-0.3) (`--compact`, no suite text) |
 | Latency (serial) | median 39 ms, mean 364 ms, p80 399 ms: one request in flight on one NVIDIA RTX PRO 6000 Blackwell Server Edition, the same server and settings, a stratified 2,000-request sample of the 0.3 suite (`suite sample --n 2000 --seed 20261008`) |
 
 ## Running it
 
 ```sh
-hf download empiriolabsai/aplomb-1 --revision 229a41d5381e8249fa96a3e1150ee0358e8306a4 --local-dir aplomb-1   # gated; access is approved automatically
+hf download empiriolabsai/aplomb-1 --revision d67432916c6e1fe569ab2de7942755eee91e6880 --local-dir aplomb-1   # gated; access is approved automatically
 pip install -U "transformers>=5.17" torch accelerate torchvision torchaudio torchcodec soundfile librosa flash-linear-attention
 python aplomb-1/serve_aplomb.py --model aplomb-1 --port 8000      # POST /v1/systemone on 127.0.0.1:8000, GET /health
 
@@ -39,6 +39,9 @@ python -m decision_index score --edition 0.3 --results results.jsonl.gz --out re
   `model`, `state` and `questions`. The weights need about 12 GB of accelerator memory.
 - **Software in this run:** the install line above on October 8, 2026: torch 2.14.1+cu130, transformers 5.19.0,
   flash-linear-attention 0.5.2.
+- **Images, video and audio (for the Vision board):** the same server reads media objects anywhere in `state`, as
+  `{"type": "image", "data": "<base64>", "mime": "image/png"}` or `{"type": "image", "url": "https://..."}`, and
+  the same with `"video"` or `"audio"`; the settings above apply unchanged.
 
 ## How the run was made
 
